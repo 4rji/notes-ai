@@ -18,6 +18,7 @@ func main() {
 		model    = flag.String("model", "", "Modelo a usar (ej: claude-opus-4-8, gpt-4o)")
 		showVer  = flag.Bool("version", false, "Mostrar versión")
 	)
+	config.InitLang()
 	flag.Usage = usage
 	flag.Parse()
 
@@ -36,13 +37,13 @@ func main() {
 
 	cfg, err := config.Load()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error de configuración: %v\n", err)
+		fmt.Fprintf(os.Stderr, config.Tr().ErrConfig, err)
 		os.Exit(1)
 	}
 
 	dir, err := os.Getwd()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "No se pudo obtener el directorio actual: %v\n", err)
+		fmt.Fprintf(os.Stderr, config.Tr().ErrCwd, err)
 		os.Exit(1)
 	}
 
@@ -67,7 +68,7 @@ func main() {
 	if len(args) > 0 && args[0] == "ask" {
 		question := strings.Join(args[1:], " ")
 		if question == "" {
-			fmt.Fprintln(os.Stderr, "Uso: notes-ai ask \"tu pregunta aquí\"")
+			fmt.Fprintln(os.Stderr, config.Tr().AskUsage)
 			os.Exit(1)
 		}
 		if err := chat.AskOnce(cfg, dir, question); err != nil {
@@ -85,32 +86,5 @@ func main() {
 }
 
 func usage() {
-	fmt.Println(`
-  notes-ai — Pregúntale a tus notas con IA
-
-  Uso:
-    notes-ai                        modo interactivo (chat)
-    notes-ai ask "tu pregunta"      pregunta directa y sale
-    notes-ai index                  construye/actualiza el índice
-    notes-ai index --rebuild        reconstruye el índice desde cero
-    notes-ai --provider openai      usa OpenAI en lugar de Anthropic
-    notes-ai --model claude-opus-4-8  modelo específico
-
-  Variables de entorno:
-    ANTHROPIC_API_KEY     tu API key de Anthropic (respuestas)
-    OPENAI_API_KEY        tu API key de OpenAI (respuestas y/o embeddings)
-    NOTES_AI_PROVIDER    anthropic (default) | openai
-    NOTES_AI_MODEL       nombre del modelo de respuestas
-    NOTES_AI_EMBED_MODEL modelo de embeddings (def: text-embedding-3-small)
-    NOTES_AI_TOP_K       fragmentos relevantes por pregunta (def: 8)
-    NOTES_AI_MAX_CHARS   límite de contexto en modo fallback
-    NOTES_AI_SYSTEM      system prompt personalizado
-
-  Búsqueda inteligente (RAG):
-    Si hay OPENAI_API_KEY, las notas se indexan con embeddings y cada
-    pregunta solo envía los fragmentos relevantes (rápido y económico).
-    Sin esa key, se usa el contexto completo con un límite de caracteres.
-
-  Archivos soportados:  .md  .txt  .json
-  Se leen de forma recursiva desde el directorio actual.`)
+	fmt.Println(config.Tr().Usage)
 }
