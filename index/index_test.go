@@ -48,13 +48,15 @@ func TestCosine(t *testing.T) {
 }
 
 func TestSyncIncremental(t *testing.T) {
-	// embed falso: vector determinista por longitud del texto.
-	fake := func(texts []string) ([][]float32, error) {
+	// embed falso: vector determinista por longitud del texto; reporta tokens.
+	fake := func(texts []string) ([][]float32, int, error) {
 		out := make([][]float32, len(texts))
+		tokens := 0
 		for i, tx := range texts {
 			out[i] = []float32{float32(len(tx)), 1, 0}
+			tokens += len(tx)
 		}
-		return out, nil
+		return out, tokens, nil
 	}
 
 	idx := &Index{}

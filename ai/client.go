@@ -16,16 +16,22 @@ type Message struct {
 	Content string `json:"content"`
 }
 
+// Usage reporta los tokens reales consumidos en una llamada.
+type Usage struct {
+	Input  int
+	Output int
+}
+
 var httpClient = &http.Client{Timeout: 120 * time.Second}
 
-func Ask(cfg *config.Config, notesContext string, history []Message, question string) (string, error) {
+func Ask(cfg *config.Config, notesContext string, history []Message, question string) (string, Usage, error) {
 	switch cfg.Provider {
 	case "anthropic":
 		return askAnthropic(cfg, notesContext, history, question)
 	case "openai":
 		return askOpenAI(cfg, notesContext, history, question)
 	default:
-		return "", fmt.Errorf("provider desconocido: %s", cfg.Provider)
+		return "", Usage{}, fmt.Errorf("provider desconocido: %s", cfg.Provider)
 	}
 }
 
@@ -41,6 +47,10 @@ type embedResponse struct {
 		Index     int       `json:"index"`
 		Embedding []float32 `json:"embedding"`
 	} `json:"data"`
+	Usage struct {
+		PromptTokens int `json:"prompt_tokens"`
+		TotalTokens  int `json:"total_tokens"`
+	} `json:"usage"`
 	Error *struct {
 		Message string `json:"message"`
 	} `json:"error"`
@@ -49,24 +59,26 @@ type embedResponse struct {
 const embedBatchSize = 64
 
 // Embed convierte textos en vectores usando el endpoint de embeddings de OpenAI.
-// Procesa en lotes para no exceder límites por request.
-func Embed(cfg *config.Config, texts []string) ([][]float32, error) {
+// Procesa en lotes y devuelve también el total de tokens consumidos.
+func Embed(cfg *config.Config, texts []string) ([][]float32, int, error) {
 	out := make([][]float32, 0, len(texts))
+	totalTokens := 0
 	for i := 0; i < len(texts); i += embedBatchSize {
 		end := i + embedBatchSize
 		if end > len(texts) {
 			end = len(texts)
 		}
-		embs, err := embedBatch(cfg, texts[i:end])
+		embs, tokens, err := embedBatch(cfg, texts[i:end])
 		if err != nil {
-			return nil, err
+			return nil, totalTokens, err
 		}
 		out = append(out, embs...)
+		totalTokens += tokens
 	}
-	return out, nil
+	return out, totalTokens, nil
 }
 
-func embedBatch(cfg *config.Config, texts []string) ([][]float32, error) {
+func embedBatch(cfg *config.Config, texts []string) ([][]float32, int, error) {
 	body, _ := json.Marshal(embedRequest{Model: cfg.EmbedModel, Input: texts})
 
 	req, _ := http.NewRequest("POST", "https://api.openai.com/v1/embeddings", bytes.NewReader(body))
@@ -75,17 +87,17 @@ func embedBatch(cfg *config.Config, texts []string) ([][]float32, error) {
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("error de red (embeddings): %w", err)
+		return nil, 0, fmt.Errorf("error de red (embeddings): %w", err)
 	}
 	defer resp.Body.Close()
 
 	data, _ := io.ReadAll(resp.Body)
 	var result embedResponse
 	if err := json.Unmarshal(data, &result); err != nil {
-		return nil, fmt.Errorf("respuesta inválida (embeddings): %w", err)
+		return nil, 0, fmt.Errorf("respuesta inválida (embeddings): %w", err)
 	}
 	if result.Error != nil {
-		return nil, fmt.Errorf("embeddings API error: %s", result.Error.Message)
+		return nil, 0, fmt.Errorf("embeddings API error: %s", result.Error.Message)
 	}
 
 	out := make([][]float32, len(texts))
@@ -94,28 +106,32 @@ func embedBatch(cfg *config.Config, texts []string) ([][]float32, error) {
 			out[d.Index] = d.Embedding
 		}
 	}
-	return out, nil
+	return out, result.Usage.TotalTokens, nil
 }
 
 // ── Anthropic ────────────────────────────────────────────────────────────────
 
 type anthropicRequest struct {
-	Model     string            `json:"model"`
-	MaxTokens int               `json:"max_tokens"`
-	System    string            `json:"system"`
-	Messages  []Message         `json:"messages"`
+	Model     string    `json:"model"`
+	MaxTokens int       `json:"max_tokens"`
+	System    string    `json:"system"`
+	Messages  []Message `json:"messages"`
 }
 
 type anthropicResponse struct {
 	Content []struct {
 		Text string `json:"text"`
 	} `json:"content"`
+	Usage struct {
+		InputTokens  int `json:"input_tokens"`
+		OutputTokens int `json:"output_tokens"`
+	} `json:"usage"`
 	Error *struct {
 		Message string `json:"message"`
 	} `json:"error"`
 }
 
-func askAnthropic(cfg *config.Config, notesContext string, history []Message, question string) (string, error) {
+func askAnthropic(cfg *config.Config, notesContext string, history []Message, question string) (string, Usage, error) {
 	systemPrompt := cfg.SystemPrompt
 	if notesContext != "" {
 		systemPrompt += "\n\n## NOTAS DEL USUARIO\n" + notesContext
@@ -137,22 +153,23 @@ func askAnthropic(cfg *config.Config, notesContext string, history []Message, qu
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("error de red: %w", err)
+		return "", Usage{}, fmt.Errorf("error de red: %w", err)
 	}
 	defer resp.Body.Close()
 
 	data, _ := io.ReadAll(resp.Body)
 	var result anthropicResponse
 	if err := json.Unmarshal(data, &result); err != nil {
-		return "", fmt.Errorf("respuesta inválida: %w", err)
+		return "", Usage{}, fmt.Errorf("respuesta inválida: %w", err)
 	}
 	if result.Error != nil {
-		return "", fmt.Errorf("API error: %s", result.Error.Message)
+		return "", Usage{}, fmt.Errorf("API error: %s", result.Error.Message)
 	}
 	if len(result.Content) == 0 {
-		return "", fmt.Errorf("respuesta vacía del API")
+		return "", Usage{}, fmt.Errorf("respuesta vacía del API")
 	}
-	return result.Content[0].Text, nil
+	usage := Usage{Input: result.Usage.InputTokens, Output: result.Usage.OutputTokens}
+	return result.Content[0].Text, usage, nil
 }
 
 // ── OpenAI ───────────────────────────────────────────────────────────────────
@@ -166,12 +183,16 @@ type openAIResponse struct {
 	Choices []struct {
 		Message Message `json:"message"`
 	} `json:"choices"`
+	Usage struct {
+		PromptTokens     int `json:"prompt_tokens"`
+		CompletionTokens int `json:"completion_tokens"`
+	} `json:"usage"`
 	Error *struct {
 		Message string `json:"message"`
 	} `json:"error"`
 }
 
-func askOpenAI(cfg *config.Config, notesContext string, history []Message, question string) (string, error) {
+func askOpenAI(cfg *config.Config, notesContext string, history []Message, question string) (string, Usage, error) {
 	systemContent := cfg.SystemPrompt
 	if notesContext != "" {
 		systemContent += "\n\n## NOTAS DEL USUARIO\n" + notesContext
@@ -192,20 +213,21 @@ func askOpenAI(cfg *config.Config, notesContext string, history []Message, quest
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("error de red: %w", err)
+		return "", Usage{}, fmt.Errorf("error de red: %w", err)
 	}
 	defer resp.Body.Close()
 
 	data, _ := io.ReadAll(resp.Body)
 	var result openAIResponse
 	if err := json.Unmarshal(data, &result); err != nil {
-		return "", fmt.Errorf("respuesta inválida: %w", err)
+		return "", Usage{}, fmt.Errorf("respuesta inválida: %w", err)
 	}
 	if result.Error != nil {
-		return "", fmt.Errorf("API error: %s", result.Error.Message)
+		return "", Usage{}, fmt.Errorf("API error: %s", result.Error.Message)
 	}
 	if len(result.Choices) == 0 {
-		return "", fmt.Errorf("respuesta vacía del API")
+		return "", Usage{}, fmt.Errorf("respuesta vacía del API")
 	}
-	return result.Choices[0].Message.Content, nil
+	usage := Usage{Input: result.Usage.PromptTokens, Output: result.Usage.CompletionTokens}
+	return result.Choices[0].Message.Content, usage, nil
 }

@@ -10,9 +10,9 @@ import (
 	"github.com/4rji/notes-ai/reader"
 )
 
-// EmbedFunc convierte textos en vectores. Lo provee la capa ai para evitar
-// que este paquete dependa del cliente HTTP.
-type EmbedFunc func(texts []string) ([][]float32, error)
+// EmbedFunc convierte textos en vectores y devuelve los tokens consumidos.
+// Lo provee la capa ai para evitar que este paquete dependa del cliente HTTP.
+type EmbedFunc func(texts []string) ([][]float32, int, error)
 
 // Chunk es un fragmento de una nota con su vector de embedding.
 type Chunk struct {
@@ -36,6 +36,7 @@ type Index struct {
 // Stats resume qué cambió en una sincronización.
 type Stats struct {
 	Added, Updated, Removed, Unchanged int
+	Tokens                             int // tokens de embeddings consumidos
 }
 
 func (s Stats) Changed() bool { return s.Added+s.Updated+s.Removed > 0 }
@@ -121,10 +122,11 @@ func (idx *Index) Sync(docs []reader.FileDoc, embedModel string, embed EmbedFunc
 	}
 
 	if len(allTexts) > 0 {
-		embs, err := embed(allTexts)
+		embs, tokens, err := embed(allTexts)
 		if err != nil {
 			return st, err
 		}
+		st.Tokens = tokens
 		k := 0
 		for _, cd := range changed {
 			for _, t := range cd.texts {

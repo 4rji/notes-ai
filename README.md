@@ -135,6 +135,23 @@ In both modes, conversation history is kept across turns (last 20 exchanges) in
 interactive mode. Ignored directories: `.git`, `node_modules`, `vendor`,
 `.venv`, `__pycache__`, `.cache`. The index file itself is never indexed.
 
+### Token usage
+
+Real token counts (reported by the APIs, not estimated) are shown after every
+answer:
+
+```
+  ┄ tokens: 1,240 enviados · 312 recibidos · 14 en búsqueda
+```
+
+- **enviados** — input tokens sent to the answer model (system prompt + retrieved
+  chunks + history + your question)
+- **recibidos** — output tokens of the answer
+- **en búsqueda** — tokens used to embed your question (RAG mode only)
+
+`/info` shows the cumulative totals for the session. `notes-ai index` reports the
+embedding tokens consumed while building the index.
+
 ---
 
 ## Project structure
