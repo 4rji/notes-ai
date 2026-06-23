@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/4rji/gov-notes/config"
+	"github.com/4rji/notes-ai/config"
 )
 
 type Message struct {

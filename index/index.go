@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/4rji/gov-notes/reader"
+	"github.com/4rji/notes-ai/reader"
 )
 
 // EmbedFunc convierte textos en vectores. Lo provee la capa ai para evitar
@@ -26,7 +26,7 @@ type FileMeta struct {
 	Hash string `json:"hash"`
 }
 
-// Index es el índice completo, serializado a .gov-notes-index.json.
+// Index es el índice completo, serializado a .notes-ai-index.json.
 type Index struct {
 	EmbedModel string              `json:"embed_model"`
 	Files      map[string]FileMeta `json:"files"`

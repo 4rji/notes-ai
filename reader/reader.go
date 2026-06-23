@@ -14,7 +14,7 @@ const maxFileSize = 500 * 1024 // 500KB
 
 // IndexFileName es el archivo donde vive el índice de embeddings.
 // Se ignora al leer notas para no indexarse a sí mismo.
-const IndexFileName = ".gov-notes-index.json"
+const IndexFileName = ".notes-ai-index.json"
 
 var allowedExts = map[string]bool{
 	".md":   true,

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/4rji/gov-notes/reader"
+	"github.com/4rji/notes-ai/reader"
 )
 
 func TestChunkText(t *testing.T) {

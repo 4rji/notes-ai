@@ -7,10 +7,10 @@ import (
 
 	"github.com/chzyer/readline"
 
-	"github.com/4rji/gov-notes/ai"
-	"github.com/4rji/gov-notes/config"
-	"github.com/4rji/gov-notes/index"
-	"github.com/4rji/gov-notes/reader"
+	"github.com/4rji/notes-ai/ai"
+	"github.com/4rji/notes-ai/config"
+	"github.com/4rji/notes-ai/index"
+	"github.com/4rji/notes-ai/reader"
 )
 
 const maxHistory = 20 // turnos máximos en el historial de conversación
@@ -125,6 +125,23 @@ func RunInteractive(cfg *config.Config, dir string) error {
 		case "/salir", "/exit", "/quit":
 			fmt.Println("  Hasta luego.")
 			return nil
+
+		case "/index":
+			if !cfg.RAGEnabled() {
+				fmt.Println("  El indexado requiere OPENAI_API_KEY (embeddings). Ver /ayuda.")
+				fmt.Println()
+				continue
+			}
+			fmt.Print("  indexando...")
+			s, err = prepare(cfg, dir, false)
+			fmt.Print("\r              \r")
+			if err != nil {
+				fmt.Printf("  Error indexando: %v\n\n", err)
+				continue
+			}
+			fmt.Printf("  Índice actualizado: %d archivos, %d fragmentos.\n\n",
+				s.idx.FileCount(), len(s.idx.Chunks))
+			continue
 
 		case "/reload":
 			s, err = prepare(cfg, dir, false)
@@ -263,7 +280,7 @@ func printHeader(s *session) {
 	}
 	fmt.Println()
 	fmt.Println("  ┌─────────────────────────────────────────────────────┐")
-	fmt.Printf("  │  gov-notes  │  %s %s\n", provider, s.cfg.Model)
+	fmt.Printf("  │  notes-ai  │  %s %s\n", provider, s.cfg.Model)
 	fmt.Printf("  │  Dir: %s\n", s.dir)
 	fmt.Printf("  │  %d archivos  │  modo: %s\n", s.fileCount, mode)
 	fmt.Println("  │  /ayuda para comandos  │  Ctrl+C para salir")
@@ -278,6 +295,23 @@ func printHeader(s *session) {
 		fmt.Println("  Configura OPENAI_API_KEY para activar búsqueda por embeddings (sin límite).")
 		fmt.Println()
 	}
+
+	printMenu()
+}
+
+// printMenu muestra el menú de comandos disponibles (al arrancar y con /ayuda).
+func printMenu() {
+	fmt.Println("  Comandos:")
+	fmt.Println("    /index     → indexar / actualizar las notas (RAG)")
+	fmt.Println("    /reindex   → reconstruir el índice desde cero")
+	fmt.Println("    /info      → estado del índice / archivos cargados")
+	fmt.Println("    /reload    → recargar y sincronizar cambios")
+	fmt.Println("    /limpiar   → borrar historial de conversación")
+	fmt.Println("    /ayuda     → mostrar este menú")
+	fmt.Println("    /salir     → salir del programa")
+	fmt.Println()
+	fmt.Println("  O simplemente escribe tu pregunta y presiona Enter.")
+	fmt.Println()
 }
 
 func printInfo(s *session) {
@@ -302,15 +336,7 @@ func printInfo(s *session) {
 
 func printHelp() {
 	fmt.Println()
-	fmt.Println("  Comandos disponibles:")
-	fmt.Println("    /info      — estado del índice / archivos cargados")
-	fmt.Println("    /reload    — recargar y sincronizar cambios")
-	fmt.Println("    /reindex   — reconstruir el índice desde cero")
-	fmt.Println("    /limpiar   — borrar historial de conversación")
-	fmt.Println("    /salir     — salir del programa")
-	fmt.Println()
-	fmt.Println("  O simplemente escribe tu pregunta.")
-	fmt.Println()
+	printMenu()
 }
 
 func indent(s string) string {

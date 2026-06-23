@@ -6,8 +6,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/4rji/gov-notes/chat"
-	"github.com/4rji/gov-notes/config"
+	"github.com/4rji/notes-ai/chat"
+	"github.com/4rji/notes-ai/config"
 )
 
 const version = "1.0.0"
@@ -22,16 +22,16 @@ func main() {
 	flag.Parse()
 
 	if *showVer {
-		fmt.Println("gov-notes v" + version)
+		fmt.Println("notes-ai v" + version)
 		return
 	}
 
 	// Flags override env vars
 	if *provider != "" {
-		os.Setenv("GOV_NOTES_PROVIDER", *provider)
+		os.Setenv("NOTES_AI_PROVIDER", *provider)
 	}
 	if *model != "" {
-		os.Setenv("GOV_NOTES_MODEL", *model)
+		os.Setenv("NOTES_AI_MODEL", *model)
 	}
 
 	cfg, err := config.Load()
@@ -67,7 +67,7 @@ func main() {
 	if len(args) > 0 && args[0] == "ask" {
 		question := strings.Join(args[1:], " ")
 		if question == "" {
-			fmt.Fprintln(os.Stderr, "Uso: gov-notes ask \"tu pregunta aquí\"")
+			fmt.Fprintln(os.Stderr, "Uso: notes-ai ask \"tu pregunta aquí\"")
 			os.Exit(1)
 		}
 		if err := chat.AskOnce(cfg, dir, question); err != nil {
@@ -86,25 +86,25 @@ func main() {
 
 func usage() {
 	fmt.Println(`
-  gov-notes — Pregúntale a tus notas con IA
+  notes-ai — Pregúntale a tus notas con IA
 
   Uso:
-    gov-notes                        modo interactivo (chat)
-    gov-notes ask "tu pregunta"      pregunta directa y sale
-    gov-notes index                  construye/actualiza el índice
-    gov-notes index --rebuild        reconstruye el índice desde cero
-    gov-notes --provider openai      usa OpenAI en lugar de Anthropic
-    gov-notes --model claude-opus-4-8  modelo específico
+    notes-ai                        modo interactivo (chat)
+    notes-ai ask "tu pregunta"      pregunta directa y sale
+    notes-ai index                  construye/actualiza el índice
+    notes-ai index --rebuild        reconstruye el índice desde cero
+    notes-ai --provider openai      usa OpenAI en lugar de Anthropic
+    notes-ai --model claude-opus-4-8  modelo específico
 
   Variables de entorno:
     ANTHROPIC_API_KEY     tu API key de Anthropic (respuestas)
     OPENAI_API_KEY        tu API key de OpenAI (respuestas y/o embeddings)
-    GOV_NOTES_PROVIDER    anthropic (default) | openai
-    GOV_NOTES_MODEL       nombre del modelo de respuestas
-    GOV_NOTES_EMBED_MODEL modelo de embeddings (def: text-embedding-3-small)
-    GOV_NOTES_TOP_K       fragmentos relevantes por pregunta (def: 8)
-    GOV_NOTES_MAX_CHARS   límite de contexto en modo fallback
-    GOV_NOTES_SYSTEM      system prompt personalizado
+    NOTES_AI_PROVIDER    anthropic (default) | openai
+    NOTES_AI_MODEL       nombre del modelo de respuestas
+    NOTES_AI_EMBED_MODEL modelo de embeddings (def: text-embedding-3-small)
+    NOTES_AI_TOP_K       fragmentos relevantes por pregunta (def: 8)
+    NOTES_AI_MAX_CHARS   límite de contexto en modo fallback
+    NOTES_AI_SYSTEM      system prompt personalizado
 
   Búsqueda inteligente (RAG):
     Si hay OPENAI_API_KEY, las notas se indexan con embeddings y cada

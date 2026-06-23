@@ -29,13 +29,13 @@ Usa las notas como contexto principal para responder. Si la respuesta no está e
 Sé conciso y útil.`
 
 func Load() (*Config, error) {
-	provider := os.Getenv("GOV_NOTES_PROVIDER")
+	provider := os.Getenv("NOTES_AI_PROVIDER")
 	if provider == "" {
 		provider = "anthropic"
 	}
 
-	model := os.Getenv("GOV_NOTES_MODEL")
-	systemPrompt := os.Getenv("GOV_NOTES_SYSTEM")
+	model := os.Getenv("NOTES_AI_MODEL")
+	systemPrompt := os.Getenv("NOTES_AI_SYSTEM")
 	if systemPrompt == "" {
 		systemPrompt = defaultSystemPrompt
 	}
@@ -69,7 +69,7 @@ func Load() (*Config, error) {
 	}
 
 	maxChars := defaultMaxChars[provider]
-	if v := os.Getenv("GOV_NOTES_MAX_CHARS"); v != "" {
+	if v := os.Getenv("NOTES_AI_MAX_CHARS"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
 			maxChars = n
 		}
@@ -78,15 +78,15 @@ func Load() (*Config, error) {
 	// Embeddings: siempre vía OpenAI (Anthropic no tiene endpoint de embeddings).
 	// Funciona aunque las respuestas las dé Claude.
 	embedKey := os.Getenv("OPENAI_API_KEY")
-	if k := os.Getenv("GOV_NOTES_EMBED_KEY"); k != "" {
+	if k := os.Getenv("NOTES_AI_EMBED_KEY"); k != "" {
 		embedKey = k
 	}
-	embedModel := os.Getenv("GOV_NOTES_EMBED_MODEL")
+	embedModel := os.Getenv("NOTES_AI_EMBED_MODEL")
 	if embedModel == "" {
 		embedModel = "text-embedding-3-small"
 	}
 	topK := 8
-	if v := os.Getenv("GOV_NOTES_TOP_K"); v != "" {
+	if v := os.Getenv("NOTES_AI_TOP_K"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
 			topK = n
 		}
@@ -107,7 +107,7 @@ func Load() (*Config, error) {
 func printSetupInstructions(provider string) {
 	fmt.Println()
 	fmt.Println("  ╔══════════════════════════════════════════════════╗")
-	fmt.Println("  ║          gov-notes — Configuración               ║")
+	fmt.Println("  ║          notes-ai — Configuración               ║")
 	fmt.Println("  ╚══════════════════════════════════════════════════╝")
 	fmt.Println()
 	fmt.Println("  No se encontró una API key configurada.")
@@ -117,19 +117,19 @@ func printSetupInstructions(provider string) {
 		fmt.Println("  Para usar Anthropic (recomendado), agrega a tu ~/.zshrc:")
 		fmt.Println()
 		fmt.Println(`    export ANTHROPIC_API_KEY="sk-ant-..."`)
-		fmt.Println(`    export GOV_NOTES_PROVIDER="anthropic"`)
+		fmt.Println(`    export NOTES_AI_PROVIDER="anthropic"`)
 	}
 
 	fmt.Println()
 	fmt.Println("  Para usar OpenAI, agrega a tu ~/.zshrc:")
 	fmt.Println()
 	fmt.Println(`    export OPENAI_API_KEY="sk-..."`)
-	fmt.Println(`    export GOV_NOTES_PROVIDER="openai"`)
+	fmt.Println(`    export NOTES_AI_PROVIDER="openai"`)
 
 	fmt.Println()
 	fmt.Println("  Opcionales:")
-	fmt.Println(`    export GOV_NOTES_MODEL="claude-opus-4-8"   # modelo específico`)
-	fmt.Println(`    export GOV_NOTES_SYSTEM="Eres un asistente..."  # system prompt`)
+	fmt.Println(`    export NOTES_AI_MODEL="claude-opus-4-8"   # modelo específico`)
+	fmt.Println(`    export NOTES_AI_SYSTEM="Eres un asistente..."  # system prompt`)
 
 	fmt.Println()
 	fmt.Println("  Luego ejecuta:  source ~/.zshrc")

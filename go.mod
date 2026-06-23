@@ -1,4 +1,4 @@
-module github.com/4rji/gov-notes
+module github.com/4rji/notes-ai
 
 go 1.22
 
