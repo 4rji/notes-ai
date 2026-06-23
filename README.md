@@ -86,6 +86,7 @@ If no key is found, the program prints setup instructions and exits.
 | `NOTES_AI_TOP_K` | Relevant chunks sent per question | `8` |
 | `NOTES_AI_MAX_CHARS` | Context limit in fallback mode | per provider |
 | `NOTES_AI_SYSTEM` | Custom system prompt | built-in default |
+| `NOTES_AI_LANG` | Interface language: `en` or `es` | auto (system locale, else `en`) |
 
 ---
 
@@ -167,14 +168,14 @@ After every answer, `notes-ai` prints the **real** token counts reported by the
 APIs (not estimates), so you always know exactly what each question costs:
 
 ```
-  ┄ tokens: 1,240 enviados · 312 recibidos · 14 en búsqueda
+  ┄ tokens: 1,240 sent · 312 received · 14 in search
 ```
 
 | Field | Meaning |
 |---|---|
-| `enviados` (sent) | Input tokens sent to the answer model: system prompt + retrieved chunks + history + your question. This is what counts against rate limits. |
-| `recibidos` (received) | Output tokens generated in the answer. |
-| `en búsqueda` (search) | Tokens used to embed your question (RAG mode only). |
+| `sent` | Input tokens sent to the answer model: system prompt + retrieved chunks + history + your question. This is what counts against rate limits. |
+| `received` | Output tokens generated in the answer. |
+| `in search` | Tokens used to embed your question (RAG mode only). |
 
 - `/info` shows the **cumulative totals** for the whole session.
 - `notes-ai index` reports the embedding tokens consumed while building the index.

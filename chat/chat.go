@@ -35,7 +35,7 @@ type session struct {
 func prepare(cfg *config.Config, dir string, rebuild bool) (*session, index.Stats, error) {
 	docs, err := reader.LoadFiles(dir)
 	if err != nil {
-		return nil, index.Stats{}, fmt.Errorf("error leyendo notas: %w", err)
+		return nil, index.Stats{}, fmt.Errorf(config.Tr().ErrReadNotes, err)
 	}
 
 	s := &session{cfg: cfg, dir: dir, fileCount: len(docs)}
@@ -48,7 +48,7 @@ func prepare(cfg *config.Config, dir string, rebuild bool) (*session, index.Stat
 	path := filepath.Join(dir, reader.IndexFileName)
 	idx, err := index.Load(path)
 	if err != nil {
-		return nil, index.Stats{}, fmt.Errorf("error leyendo índice: %w", err)
+		return nil, index.Stats{}, fmt.Errorf(config.Tr().ErrReadIndex, err)
 	}
 	if idx == nil || rebuild {
 		idx = &index.Index{}
@@ -56,11 +56,11 @@ func prepare(cfg *config.Config, dir string, rebuild bool) (*session, index.Stat
 
 	st, err := idx.Sync(docs, cfg.EmbedModel, embedFunc(cfg))
 	if err != nil {
-		return nil, st, fmt.Errorf("error indexando: %w", err)
+		return nil, st, fmt.Errorf(config.Tr().ErrIndexing, err)
 	}
 	if st.Changed() || rebuild {
 		if err := idx.Save(path); err != nil {
-			return nil, st, fmt.Errorf("error guardando índice: %w", err)
+			return nil, st, fmt.Errorf(config.Tr().ErrSaveIndex, err)
 		}
 	}
 
@@ -100,10 +100,11 @@ func RunInteractive(cfg *config.Config, dir string) error {
 		return err
 	}
 
+	t := config.Tr()
+
 	printHeader(s)
 	if st.Changed() {
-		fmt.Printf("  Índice sincronizado al inicio: %d nuevos, %d actualizados (%s tokens de embeddings).\n\n",
-			st.Added, st.Updated, fmtInt(st.Tokens))
+		fmt.Printf(t.IndexSynced, st.Added, st.Updated, fmtInt(st.Tokens))
 	}
 
 	rl, err := readline.New("> ")
@@ -118,7 +119,7 @@ func RunInteractive(cfg *config.Config, dir string) error {
 	for {
 		line, err := rl.Readline()
 		if err != nil { // EOF o Ctrl+C
-			fmt.Println("\n  Hasta luego.")
+			fmt.Println("\n" + t.Goodbye)
 			break
 		}
 
@@ -129,54 +130,51 @@ func RunInteractive(cfg *config.Config, dir string) error {
 
 		switch line {
 		case "/salir", "/exit", "/quit":
-			fmt.Println("  Hasta luego.")
+			fmt.Println(t.Goodbye)
 			return nil
 
 		case "/index":
 			if !cfg.RAGEnabled() {
-				fmt.Println("  El indexado requiere OPENAI_API_KEY (embeddings). Ver /ayuda.")
+				fmt.Println(t.IndexNeedsKey)
 				fmt.Println()
 				continue
 			}
-			fmt.Print("  indexando...")
+			fmt.Print(t.Indexing)
 			s, st, err = prepare(cfg, dir, false)
 			fmt.Print("\r              \r")
 			if err != nil {
-				fmt.Printf("  Error indexando: %v\n\n", err)
+				fmt.Printf(t.ErrIndexCmd, err)
 				continue
 			}
-			fmt.Printf("  Índice actualizado: %d archivos, %d fragmentos (%s tokens de embeddings).\n\n",
-				s.idx.FileCount(), len(s.idx.Chunks), fmtInt(st.Tokens))
+			fmt.Printf(t.IndexUpdated, s.idx.FileCount(), len(s.idx.Chunks), fmtInt(st.Tokens))
 			continue
 
 		case "/reload":
 			s, _, err = prepare(cfg, dir, false)
 			if err != nil {
-				fmt.Printf("  Error recargando: %v\n\n", err)
+				fmt.Printf(t.ErrReloading, err)
 				continue
 			}
-			fmt.Printf("  Recargado: %d archivos.\n\n", s.fileCount)
+			fmt.Printf(t.Reloaded, s.fileCount)
 			continue
 
 		case "/reindex":
 			s, st, err = prepare(cfg, dir, true)
 			if err != nil {
-				fmt.Printf("  Error reindexando: %v\n\n", err)
+				fmt.Printf(t.ErrReindexing, err)
 				continue
 			}
-			fmt.Printf("  Índice reconstruido: %d archivos (%s tokens de embeddings).\n\n",
-				s.fileCount, fmtInt(st.Tokens))
+			fmt.Printf(t.Reindexed, s.fileCount, fmtInt(st.Tokens))
 			continue
 
 		case "/info":
 			printInfo(s)
-			fmt.Printf("  Tokens de la sesión: %s enviados · %s recibidos · %s en búsquedas (%d preguntas)\n\n",
-				fmtInt(totIn), fmtInt(totOut), fmtInt(totEmbed), turns)
+			fmt.Printf(t.SessionTokens, fmtInt(totIn), fmtInt(totOut), fmtInt(totEmbed), turns)
 			continue
 
 		case "/limpiar", "/clear":
 			history = nil
-			fmt.Println("  Historial de conversación borrado.")
+			fmt.Println(t.HistoryCleared)
 			fmt.Println()
 			continue
 
@@ -185,17 +183,17 @@ func RunInteractive(cfg *config.Config, dir string) error {
 			continue
 		}
 
-		fmt.Print("  pensando...")
+		fmt.Print(t.Thinking)
 		ctx, qTokens, err := s.buildContext(line)
 		if err != nil {
 			fmt.Print("\r               \r")
-			fmt.Printf("  Error: %v\n\n", err)
+			fmt.Printf(t.ErrGeneric, err)
 			continue
 		}
 		answer, usage, err := ai.Ask(cfg, ctx, history, line)
 		fmt.Print("\r               \r")
 		if err != nil {
-			fmt.Printf("  Error: %v\n\n", err)
+			fmt.Printf(t.ErrGeneric, err)
 			continue
 		}
 
@@ -228,7 +226,7 @@ func AskOnce(cfg *config.Config, dir string, question string) error {
 		return err
 	}
 	if s.fileCount == 0 {
-		fmt.Println("  No se encontraron notas (.md, .txt, .json) en este directorio.")
+		fmt.Println(config.Tr().NoNotesFound)
 	}
 
 	ctx, qTokens, err := s.buildContext(question)
@@ -249,9 +247,10 @@ func AskOnce(cfg *config.Config, dir string, question string) error {
 
 // RunIndex construye o reconstruye el índice y muestra estadísticas.
 func RunIndex(cfg *config.Config, dir string, rebuild bool) error {
+	t := config.Tr()
 	if !cfg.RAGEnabled() {
-		fmt.Println("  El indexado requiere una API key de embeddings (OpenAI).")
-		fmt.Println("  Agrega a tu ~/.zshrc:")
+		fmt.Println(t.IndexNeedsKeyLong)
+		fmt.Println(t.AddToZshrc)
 		fmt.Println()
 		fmt.Println(`    export OPENAI_API_KEY="sk-..."`)
 		fmt.Println()
@@ -260,56 +259,55 @@ func RunIndex(cfg *config.Config, dir string, rebuild bool) error {
 
 	docs, err := reader.LoadFiles(dir)
 	if err != nil {
-		return fmt.Errorf("error leyendo notas: %w", err)
+		return fmt.Errorf(t.ErrReadNotes, err)
 	}
 
 	path := filepath.Join(dir, reader.IndexFileName)
 	idx, err := index.Load(path)
 	if err != nil {
-		return fmt.Errorf("error leyendo índice: %w", err)
+		return fmt.Errorf(t.ErrReadIndex, err)
 	}
 	if idx == nil || rebuild {
 		idx = &index.Index{}
 	}
 
-	fmt.Printf("  Indexando %d archivos...\n", len(docs))
+	fmt.Printf(t.IndexingNFiles, len(docs))
 	st, err := idx.Sync(docs, cfg.EmbedModel, embedFunc(cfg))
 	if err != nil {
-		return fmt.Errorf("error indexando: %w", err)
+		return fmt.Errorf(t.ErrIndexing, err)
 	}
 	if err := idx.Save(path); err != nil {
-		return fmt.Errorf("error guardando índice: %w", err)
+		return fmt.Errorf(t.ErrSaveIndex, err)
 	}
 
-	fmt.Printf("  Listo. Nuevos: %d  Actualizados: %d  Eliminados: %d  Sin cambios: %d\n",
-		st.Added, st.Updated, st.Removed, st.Unchanged)
-	fmt.Printf("  Tokens de embeddings consumidos: %s\n", fmtInt(st.Tokens))
-	fmt.Printf("  Índice: %s (%d archivos, %d fragmentos)\n",
-		reader.IndexFileName, idx.FileCount(), len(idx.Chunks))
+	fmt.Printf(t.IndexDone, st.Added, st.Updated, st.Removed, st.Unchanged)
+	fmt.Printf(t.EmbedTokens, fmtInt(st.Tokens))
+	fmt.Printf(t.IndexInfoLine, reader.IndexFileName, idx.FileCount(), len(idx.Chunks))
 	return nil
 }
 
 func printHeader(s *session) {
+	t := config.Tr()
 	provider := strings.Title(s.cfg.Provider)
-	mode := "RAG (embeddings)"
+	mode := t.ModeRAG
 	if s.idx == nil {
-		mode = "contexto completo"
+		mode = t.ModeFull
 	}
 	fmt.Println()
 	fmt.Println("  ┌─────────────────────────────────────────────────────┐")
 	fmt.Printf("  │  notes-ai  │  %s %s\n", provider, s.cfg.Model)
-	fmt.Printf("  │  Dir: %s\n", s.dir)
-	fmt.Printf("  │  %d archivos  │  modo: %s\n", s.fileCount, mode)
-	fmt.Println("  │  /ayuda para comandos  │  Ctrl+C para salir")
+	fmt.Printf(t.HeaderDir, s.dir)
+	fmt.Printf(t.HeaderFiles, s.fileCount, mode)
+	fmt.Println(t.HeaderHelp)
 	fmt.Println("  └─────────────────────────────────────────────────────┘")
 	fmt.Println()
 
 	if s.fileCount == 0 {
-		fmt.Println("  Aviso: no se encontraron archivos .md, .txt o .json aquí.")
+		fmt.Println(t.NoFilesWarn)
 		fmt.Println()
 	} else if s.idx == nil && len(s.skipped) > 0 {
-		fmt.Printf("  Aviso: %d archivo(s) omitido(s) por límite de contexto.\n", len(s.skipped))
-		fmt.Println("  Configura OPENAI_API_KEY para activar búsqueda por embeddings (sin límite).")
+		fmt.Printf(t.SkippedWarn, len(s.skipped))
+		fmt.Println(t.EnableEmbed)
 		fmt.Println()
 	}
 
@@ -318,32 +316,33 @@ func printHeader(s *session) {
 
 // printMenu muestra el menú de comandos disponibles (al arrancar y con /ayuda).
 func printMenu() {
-	fmt.Println("  Comandos:")
-	fmt.Println("    /index     → indexar / actualizar las notas (RAG)")
-	fmt.Println("    /reindex   → reconstruir el índice desde cero")
-	fmt.Println("    /info      → estado del índice / archivos cargados")
-	fmt.Println("    /reload    → recargar y sincronizar cambios")
-	fmt.Println("    /limpiar   → borrar historial de conversación")
-	fmt.Println("    /ayuda     → mostrar este menú")
-	fmt.Println("    /salir     → salir del programa")
+	t := config.Tr()
+	fmt.Println(t.MenuTitle)
+	fmt.Println(t.MenuIndex)
+	fmt.Println(t.MenuReindex)
+	fmt.Println(t.MenuInfo)
+	fmt.Println(t.MenuReload)
+	fmt.Println(t.MenuClear)
+	fmt.Println(t.MenuHelp)
+	fmt.Println(t.MenuExit)
 	fmt.Println()
-	fmt.Println("  O simplemente escribe tu pregunta y presiona Enter.")
+	fmt.Println(t.MenuHint)
 	fmt.Println()
 }
 
 func printInfo(s *session) {
+	t := config.Tr()
 	if s.idx != nil {
-		fmt.Printf("\n  Modo RAG  │  %d archivos indexados, %d fragmentos\n",
-			s.idx.FileCount(), len(s.idx.Chunks))
-		fmt.Printf("  Modelo de embeddings: %s  │  top-K: %d\n\n", s.cfg.EmbedModel, s.cfg.TopK)
+		fmt.Printf(t.InfoRAG, s.idx.FileCount(), len(s.idx.Chunks))
+		fmt.Printf(t.InfoEmbed, s.cfg.EmbedModel, s.cfg.TopK)
 		return
 	}
-	fmt.Printf("\n  Modo contexto completo  │  %d archivos cargados\n", len(s.included))
+	fmt.Printf(t.InfoFull, len(s.included))
 	for _, f := range s.included {
 		fmt.Printf("    • %s\n", f)
 	}
 	if len(s.skipped) > 0 {
-		fmt.Printf("\n  %d omitidos (límite de contexto):\n", len(s.skipped))
+		fmt.Printf(t.InfoSkipped, len(s.skipped))
 		for _, f := range s.skipped {
 			fmt.Printf("    ○ %s\n", f)
 		}
@@ -358,12 +357,11 @@ func printHelp() {
 
 // printTokens muestra el uso de tokens de una respuesta.
 func printTokens(u ai.Usage, queryTokens int) {
+	t := config.Tr()
 	if queryTokens > 0 {
-		fmt.Printf("  ┄ tokens: %s enviados · %s recibidos · %s en búsqueda\n\n",
-			fmtInt(u.Input), fmtInt(u.Output), fmtInt(queryTokens))
+		fmt.Printf(t.TokensLine3, fmtInt(u.Input), fmtInt(u.Output), fmtInt(queryTokens))
 	} else {
-		fmt.Printf("  ┄ tokens: %s enviados · %s recibidos\n\n",
-			fmtInt(u.Input), fmtInt(u.Output))
+		fmt.Printf(t.TokensLine2, fmtInt(u.Input), fmtInt(u.Output))
 	}
 }
 

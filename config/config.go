@@ -22,13 +22,9 @@ type Config struct {
 // RAGEnabled indica si hay credenciales para usar búsqueda por embeddings.
 func (c *Config) RAGEnabled() bool { return c.EmbedKey != "" }
 
-const defaultSystemPrompt = `Eres un asistente inteligente que tiene acceso a las notas del usuario.
-Las notas pueden contener texto, listas de tareas, diagramas (en formato Mermaid u otros), proyectos, documentos y cualquier tipo de información.
-Responde en el mismo idioma en que te pregunten.
-Usa las notas como contexto principal para responder. Si la respuesta no está en las notas, dilo claramente.
-Sé conciso y útil.`
-
 func Load() (*Config, error) {
+	InitLang()
+
 	provider := os.Getenv("NOTES_AI_PROVIDER")
 	if provider == "" {
 		provider = "anthropic"
@@ -37,7 +33,7 @@ func Load() (*Config, error) {
 	model := os.Getenv("NOTES_AI_MODEL")
 	systemPrompt := os.Getenv("NOTES_AI_SYSTEM")
 	if systemPrompt == "" {
-		systemPrompt = defaultSystemPrompt
+		systemPrompt = Tr().SystemPrompt
 	}
 
 	// Default max context: conservative per provider (~tokens * charsPerToken)
@@ -60,7 +56,7 @@ func Load() (*Config, error) {
 			model = "gpt-4o"
 		}
 	default:
-		return nil, fmt.Errorf("provider desconocido: %q (usa 'anthropic' o 'openai')", provider)
+		return nil, fmt.Errorf(Tr().ErrUnknownProvider, provider)
 	}
 
 	if apiKey == "" {
@@ -105,33 +101,33 @@ func Load() (*Config, error) {
 }
 
 func printSetupInstructions(provider string) {
+	t := Tr()
 	fmt.Println()
-	fmt.Println("  ╔══════════════════════════════════════════════════╗")
-	fmt.Println("  ║          notes-ai — Configuración               ║")
-	fmt.Println("  ╚══════════════════════════════════════════════════╝")
+	fmt.Println("  notes-ai — " + t.SetupHeader)
+	fmt.Println("  ──────────────────────────────")
 	fmt.Println()
-	fmt.Println("  No se encontró una API key configurada.")
+	fmt.Println("  " + t.NoAPIKey)
 	fmt.Println()
 
 	if provider == "anthropic" || provider == "" {
-		fmt.Println("  Para usar Anthropic (recomendado), agrega a tu ~/.zshrc:")
+		fmt.Println("  " + t.UseAnthropic)
 		fmt.Println()
 		fmt.Println(`    export ANTHROPIC_API_KEY="sk-ant-..."`)
 		fmt.Println(`    export NOTES_AI_PROVIDER="anthropic"`)
 	}
 
 	fmt.Println()
-	fmt.Println("  Para usar OpenAI, agrega a tu ~/.zshrc:")
+	fmt.Println("  " + t.UseOpenAI)
 	fmt.Println()
 	fmt.Println(`    export OPENAI_API_KEY="sk-..."`)
 	fmt.Println(`    export NOTES_AI_PROVIDER="openai"`)
 
 	fmt.Println()
-	fmt.Println("  Opcionales:")
-	fmt.Println(`    export NOTES_AI_MODEL="claude-opus-4-8"   # modelo específico`)
-	fmt.Println(`    export NOTES_AI_SYSTEM="Eres un asistente..."  # system prompt`)
+	fmt.Println("  " + t.Optional)
+	fmt.Println(`    export NOTES_AI_MODEL="claude-opus-4-8"   ` + t.CommentModel)
+	fmt.Println(`    export NOTES_AI_LANG="en"   # en | es`)
 
 	fmt.Println()
-	fmt.Println("  Luego ejecuta:  source ~/.zshrc")
+	fmt.Println("  " + t.ThenRun)
 	fmt.Println()
 }
